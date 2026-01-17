@@ -3,6 +3,54 @@ import Network
 import AppKit
 import os.log
 
+struct NeumorphicButtonStyle: ButtonStyle {
+    var width: CGFloat
+    var height: CGFloat
+    var cornerRadius: CGFloat = 10
+    var shape: AnyShape = AnyShape(RoundedRectangle(cornerRadius: 10))
+    
+    @State private var isHovering: Bool = false
+    
+    // Aesthetic Tokens
+    let darkBase = Color(red: 0.15, green: 0.15, blue: 0.17)
+    let lightShadow = Color(red: 0.2, green: 0.2, blue: 0.22)
+    let darkShadow = Color(red: 0.1, green: 0.1, blue: 0.12)
+    
+    func makeBody(configuration: Self.Configuration) -> some View {
+        configuration.label
+            .frame(width: width, height: height)
+            .background(darkBase)
+            .clipShape(shape)
+            // Press Effect: Inner Shadow or Scale Down
+            .scaleEffect(configuration.isPressed ? 0.95 : (isHovering ? 1.02 : 1.0))
+            .shadow(color: configuration.isPressed ? darkBase : lightShadow, radius: configuration.isPressed ? 0 : 5, x: configuration.isPressed ? 0 : -3, y: configuration.isPressed ? 0 : -3)
+            .shadow(color: configuration.isPressed ? darkBase : darkShadow, radius: configuration.isPressed ? 0 : 5, x: configuration.isPressed ? 0 : 3, y: configuration.isPressed ? 0 : 3)
+            .animation(.easeInOut(duration: 0.1), value: configuration.isPressed)
+            .animation(.easeInOut(duration: 0.2), value: isHovering)
+            // Hover logic
+            .onHover { hovering in
+                self.isHovering = hovering
+                if hovering { NSCursor.pointingHand.push() } else { NSCursor.pop() }
+            }
+    }
+}
+
+// Wrapper to type-erase shapes
+struct AnyShape: Shape {
+    private let path: (CGRect) -> Path
+    
+    init<S: Shape>(_ wrapped: S) {
+        self.path = { rect in
+            let path = wrapped.path(in: rect)
+            return path
+        }
+    }
+    
+    func path(in rect: CGRect) -> Path {
+        return path(rect)
+    }
+}
+
 struct ContentView: View {
     @StateObject var network = NetworkManager.shared
     @State private var pairingCode: String = ""
@@ -36,6 +84,9 @@ struct ContentView: View {
                             .foregroundColor(.gray)
                     }
                     .buttonStyle(PlainButtonStyle())
+                    .onHover { inside in
+                        if inside { NSCursor.pointingHand.push() } else { NSCursor.pop() }
+                    }
                     .popover(isPresented: $showLogs, arrowEdge: .bottom) {
                         LogView()
                             .frame(width: 400, height: 300)
@@ -73,6 +124,9 @@ struct ContentView: View {
                                                 .cornerRadius(8)
                                             }
                                             .buttonStyle(PlainButtonStyle())
+                                            .onHover { inside in
+                                                if inside { NSCursor.pointingHand.push() } else { NSCursor.pop() }
+                                            }
                                         }
                                     }
                                 }
@@ -102,20 +156,11 @@ struct ContentView: View {
                             NavButton(icon: "chevron.left", action: { network.sendKey(.dpadLeft) })
                             
                             Button(action: { network.sendKey(.dpadCenter) }) {
-                                Circle()
-                                    .fill(darkBase)
-                                    .overlay(
-                                        Circle()
-                                            .stroke(darkBase, lineWidth: 4)
-                                            .shadow(color: darkShadow, radius: 3, x: 2, y: 2)
-                                            .clipShape(Circle())
-                                            .shadow(color: lightShadow, radius: 3, x: -2, y: -2)
-                                            .clipShape(Circle())
-                                    )
-                                    .frame(width: 70, height: 70)
-                                    .overlay(Text("OK").font(.system(size: 14, weight: .bold)).foregroundColor(.white))
+                                Text("OK")
+                                    .font(.system(size: 14, weight: .bold))
+                                    .foregroundColor(.white)
                             }
-                            .buttonStyle(PlainButtonStyle())
+                            .buttonStyle(NeumorphicButtonStyle(width: 70, height: 70, shape: AnyShape(Circle())))
                             
                             NavButton(icon: "chevron.right", action: { network.sendKey(.dpadRight) })
                         }
@@ -163,6 +208,9 @@ struct ContentView: View {
                                 network.disconnect()
                             }
                             .buttonStyle(PlainButtonStyle())
+                            .onHover { inside in
+                                if inside { NSCursor.pointingHand.push() } else { NSCursor.pop() }
+                            }
                             .padding(.horizontal, 12)
                             .padding(.vertical, 8)
                             .background(Color.red.opacity(0.3))
@@ -173,6 +221,9 @@ struct ContentView: View {
                                 pairingCode = ""
                             }
                             .buttonStyle(PlainButtonStyle())
+                            .onHover { inside in
+                                if inside { NSCursor.pointingHand.push() } else { NSCursor.pop() }
+                            }
                             .padding(.horizontal, 12)
                             .padding(.vertical, 8)
                             .background(Color.green.opacity(0.3))
@@ -249,13 +300,8 @@ struct NavButton: View {
             Image(systemName: icon)
                 .font(.system(size: 20, weight: .bold))
                 .foregroundColor(.white.opacity(0.8))
-                .frame(width: 50, height: 50)
-                .background(darkBase)
-                .cornerRadius(10)
-                .shadow(color: lightShadow, radius: 4, x: -2, y: -2)
-                .shadow(color: darkShadow, radius: 4, x: 2, y: 2)
         }
-        .buttonStyle(PlainButtonStyle())
+        .buttonStyle(NeumorphicButtonStyle(width: 50, height: 50, cornerRadius: 10, shape: AnyShape(RoundedRectangle(cornerRadius: 10))))
     }
 }
 
@@ -273,13 +319,8 @@ struct FuncButton: View {
                 Text(label).font(.caption)
             }
             .foregroundColor(.white.opacity(0.9))
-            .frame(width: 60, height: 60)
-            .background(darkBase)
-            .cornerRadius(12)
-            .shadow(color: lightShadow, radius: 5, x: -2, y: -2)
-            .shadow(color: darkShadow, radius: 5, x: 2, y: 2)
         }
-        .buttonStyle(PlainButtonStyle())
+        .buttonStyle(NeumorphicButtonStyle(width: 60, height: 60, cornerRadius: 12, shape: AnyShape(RoundedRectangle(cornerRadius: 12))))
     }
 }
 
@@ -295,7 +336,13 @@ struct LogView: View {
                     pasteboard.clearContents()
                     pasteboard.setString(logger.exportLogs(), forType: .string)
                 }
+                .onHover { inside in
+                    if inside { NSCursor.pointingHand.push() } else { NSCursor.pop() }
+                }
                 Button("Clear") { logger.clear() }
+                .onHover { inside in
+                    if inside { NSCursor.pointingHand.push() } else { NSCursor.pop() }
+                }
             }.padding()
             ScrollView {
                 LazyVStack(alignment: .leading, spacing: 5) {
