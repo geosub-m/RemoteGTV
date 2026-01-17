@@ -3,6 +3,7 @@ import Network
 import Security
 import Combine
 import CryptoKit
+import AppKit // For NSWorkspace
 
 class NetworkManager: NSObject, ObservableObject {
     static let shared = NetworkManager()
@@ -25,6 +26,9 @@ class NetworkManager: NSObject, ObservableObject {
     private var receiveBuffer = Data()
     private var triedControlPortFirst: Bool = false
     
+    // Sleep/Wake Handling
+    private var isWakingUp: Bool = false
+    
     private let lastDeviceIPKey = "lastConnectedDeviceIP"
     
     enum ConnectionState: Equatable {
@@ -38,6 +42,10 @@ class NetworkManager: NSObject, ObservableObject {
     override init() {
         super.init()
         Logger.shared.log("Initializing NetworkManager...", category: "Network")
+        
+        // Setup Sleep/Wake Observers
+        NSWorkspace.shared.notificationCenter.addObserver(self, selector: #selector(onSleep), name: NSWorkspace.willSleepNotification, object: nil)
+        NSWorkspace.shared.notificationCenter.addObserver(self, selector: #selector(onWake), name: NSWorkspace.didWakeNotification, object: nil)
         
         // Load identity on start
         if let cert = CertUtils.shared.loadIdentityFromP12() {
@@ -59,6 +67,40 @@ class NetworkManager: NSObject, ObservableObject {
         }
         
         startDiscovery()
+    }
+    
+    deinit {
+        NSWorkspace.shared.notificationCenter.removeObserver(self)
+    }
+    
+    @objc private func onSleep() {
+        Logger.shared.log("System is going to sleep. Disconnecting...", category: "System")
+        self.disconnect()
+        // Ensure we are truly disconnected so we don't get error callbacks later
+        self.connectionState = .disconnected
+        self.statusMessage = "Paused (OS Sleeping)"
+    }
+    
+    @objc private func onWake() {
+        Logger.shared.log("System woke up. Waiting 3s for network...", category: "System")
+        self.isWakingUp = true
+        self.statusMessage = "Resuming connection..."
+        
+        DispatchQueue.main.asyncAfter(deadline: .now() + 3.0) { [weak self] in
+            guard let self = self else { return }
+            self.isWakingUp = false
+            Logger.shared.log("Attempting reconnect after wake...", category: "System")
+            
+            // Prefer last connected IP
+            if let ip = self.lastConnectedIP {
+                Logger.shared.log("Wake: Reconnecting to saved IP \(ip) on Control Port 6466", category: "System")
+                self.triedControlPortFirst = true
+                self.connectToIP(host: ip, port: 6466)
+            } else {
+                Logger.shared.log("Wake: No saved IP, restarting discovery.", category: "System")
+                self.startDiscovery()
+            }
+        }
     }
     
     func startDiscovery() {
@@ -163,20 +205,28 @@ class NetworkManager: NSObject, ObservableObject {
         case .failed(let error):
             Logger.shared.log("Connection FAILED: \(error)", category: "Connection", type: .error)
             
-            // If we tried control port first and it failed, try pairing port
-            if self.currentPort == 6466 && self.triedControlPortFirst {
-                Logger.shared.log("Control port failed, falling back to pairing port 6467...", category: "Connection")
-                self.triedControlPortFirst = false
+            // If Control Port (6466) fails, retry it. DO NOT fallback to 6467 (Pairing) automatically.
+            // This prevents "Enter Code" prompts when Wi-Fi is toggled or network is transiently lost.
+            if self.currentPort == 6466 {
+                Logger.shared.log("Control port connection failed. Retrying 6466 in 2.0s...", category: "Connection")
+                self.statusMessage = "Connection lost. Retrying..."
+                self.connection?.cancel()
+                self.connection = nil
+                self.stopPingTimer()
+                
                 if let ip = self.lastConnectedIP {
-                    self.connection?.cancel()
-                    self.connection = nil
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-                        self.connectToIP(host: ip, port: 6467)
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) { [weak self] in
+                        guard let self = self else { return }
+                        // Check if we haven't started something else in the meantime
+                        if self.connectionState != .connected && self.connectionState != .connecting {
+                            self.connectToIP(host: ip, port: 6466)
+                        }
                     }
                     return
                 }
             }
             
+            // For other ports (like 6467 failing) or if no IP known:
             self.connectionState = .error(error.localizedDescription)
             self.statusMessage = "Connection failed: \(error.localizedDescription)"
             self.stopPingTimer()
