@@ -273,6 +273,7 @@ struct ContentView: View {
             case 126: network.sendKey(.dpadUp); return nil
             case 36: network.sendKey(.dpadCenter); return nil // Enter
             case 53: network.sendKey(.back); return nil // Esc
+            case 51: network.sendKey(.back); return nil // Backspace
             case 4: network.sendKey(.home); return nil // H
             case 103: network.sendKey(.volumeUp); return nil
             default: return event
