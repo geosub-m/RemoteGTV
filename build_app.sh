@@ -3,7 +3,7 @@
 # Configuration
 APP_NAME="RemoteGTV"
 BUILD_DIR="build"
-ICONS_SOURCE="AppIcon.png"
+ICONS_SOURCE="src/AppIcon.png"
 ICON_SET="AppIcon.iconset"
 
 # Cleanup
@@ -21,13 +21,13 @@ mkdir -p "$APP_NAME.app/Contents/Resources"
 # Compile Swift Code
 echo "Compiling Swift sources..."
 swiftc -o "$APP_NAME.app/Contents/MacOS/$APP_NAME" \
-    RemoteTVApp.swift \
-    ContentView.swift \
-    NetworkManager.swift \
-    RemoteProtocol.swift \
-    ProtocolBuffer.swift \
-    CertUtils.swift \
-    Logger.swift
+    src/RemoteTVApp.swift \
+    src/ContentView.swift \
+    src/NetworkManager.swift \
+    src/RemoteProtocol.swift \
+    src/ProtocolBuffer.swift \
+    src/CertUtils.swift \
+    src/Logger.swift
 
 if [ $? -ne 0 ]; then
     echo "Error: Compilation failed!"
