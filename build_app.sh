@@ -55,6 +55,8 @@ cat > "$APP_NAME.app/Contents/Info.plist" <<EOF
     <string>13.0</string>
     <key>NSHighResolutionCapable</key>
     <true/>
+    <key>NSMicrophoneUsageDescription</key>
+    <string>We need access to the microphone to send voice commands to your TV.</string>
 </dict>
 </plist>
 EOF
