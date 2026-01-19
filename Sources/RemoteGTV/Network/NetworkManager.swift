@@ -473,6 +473,42 @@ class NetworkManager: NSObject, ObservableObject {
         }
     }
     
+    // MARK: - Voice Actions
+    
+    func startVoiceSearch() {
+        Logger.shared.log("Starting Voice Search...", category: "Voice")
+        self.sendVoiceBegin(requestId: 1)
+        
+        VoiceInputManager.shared.startRecording { [weak self] audioData in
+            self?.sendVoicePayload(data: audioData)
+        }
+    }
+    
+    func stopVoiceSearch() {
+        Logger.shared.log("Stopping Voice Search.", category: "Voice")
+        VoiceInputManager.shared.stopRecording()
+        self.sendVoiceEnd()
+    }
+    
+    // Internal Voice Sends
+    func sendVoiceBegin(requestId: UInt32) {
+        let msg = RemoteVoiceBegin(requestId: requestId)
+        let pkt = RemoteMessage(voiceBegin: msg)
+        send(pkt.serialize())
+    }
+    
+    func sendVoicePayload(data: Data) {
+        let msg = RemoteVoicePayload(data: data)
+        let pkt = RemoteMessage(voicePayload: msg)
+        send(pkt.serialize())
+    }
+    
+    func sendVoiceEnd() {
+        let msg = RemoteVoiceEnd()
+        let pkt = RemoteMessage(voiceEnd: msg)
+        send(pkt.serialize())
+    }
+    
     func send(_ data: Data) {
         var frame = Data()
         let lengthBytes = ProtocolBuffer.encodeVarint(UInt64(data.count))
