@@ -16,8 +16,10 @@ Built with **SwiftUI** and native system frameworks, it ensures high performance
 *   **Auto-Discovery**: Automatically finds Android TV / Google TV devices on your local network using Bonjour (mDNS) / Network Service Discovery.
 *   **Secure Pairing**: Implements the official Android TV pairing protocol using TLS certificates for a secure and authenticated connection.
 *   **Full Remote Control**: Supports standard navigation keys (D-Pad), Back, Home, Volume control, Mute, and Power.
+*   **Voice Control**: Trigger Google Assistant and stream your voice command directly from your Mac's microphone.
 *   **Keyboard Support**: (Planned) Type on your Mac keyboard to input text on the TV.
 *   **Instant Connection**: Remembers previously paired devices for quick reconnection.
+*   **Wake-on-LAN**: (Implicit) Attempts to reconnect to the TV even if it was previously asleep (subject to TV support).
 
 ## 🛠 Technology Stack
 
@@ -28,8 +30,9 @@ This project is built using:
 *   **UI Framework**: [SwiftUI](https://developer.apple.com/xcode/swiftui/)
 *   **Architecture**: MVVM with Modular Structure (Core, Network, UI)
 *   **Networking**: `Network.framework` (NWConnection) for raw TCP/TLS socket communication.
-*   **Protocol**: Custom implementation of the **Android TV Remote Protocol v2**.
+*   **Protocol**: Custom implementation of the **Android TV Remote Protocol v2** using efficient low-level Byte buffers.
 *   **Security**: Native `Security` framework for generating self-signed RSA certificates required for the pairing handshake.
+*   **Audio**: `AVFoundation` for capturing microphone input for Voice Search.
 
 ## 🚀 How to Build & Install
 
@@ -76,10 +79,12 @@ The project follows the standard Swift Package Manager structure with organized 
 *   `Sources/RemoteGTV/`:
     *   **Core/**:
         *   `Logger.swift`: Centralized logging system.
+        *   `VoiceInputManager.swift`: Handles audio recording and stream formatting for Voice Search.
     *   **Network/**:
         *   `NetworkManager.swift`: Main coordinator for connection and state.
         *   `DiscoveryManager.swift`: Handles Bonjour/mDNS device discovery.
         *   `RemoteProtocol.swift`, `ProtocolBuffer.swift`: Protocol definitions and serialization.
+        *   `RemoteMote.proto`: Protobuf definition (reference for v2 protocol).
         *   `CryptoUtils.swift`, `CertUtils.swift`: Cryptography and Identity management.
     *   **UI/**:
         *   `RemoteTVApp.swift`: App entry point.
@@ -91,7 +96,7 @@ The project follows the standard Swift Package Manager structure with organized 
 
 ## 🤝 Contributing
 
-Contributions are welcome! If you find a bug or want to suggest a new feature (like Voice Search or App launching), feel free to open an issue or submit a pull request.
+Contributions are welcome! If you find a bug or want to suggest a new feature (like App launching), feel free to open an issue or submit a pull request.
 
 ## 📄 License
 
