@@ -34,6 +34,10 @@ class NetworkManager: NSObject, ObservableObject {
     private var isWakingUp: Bool = false
     private let lastDeviceIPKey = "lastConnectedDeviceIP"
     
+    // Voice Control State
+    private var voiceRequestId: UInt32 = 0
+    private var isVoiceActive = false
+    
     enum ConnectionState: Equatable {
         case disconnected
         case searching
@@ -74,11 +78,11 @@ class NetworkManager: NSObject, ObservableObject {
     }
     
     private func loadIdentity() {
-        if let cert = CertUtils.shared.loadIdentityFromP12() {
+        if let cert = CertUtils.shared.getIdentity() {
             self.identity = cert
-            Logger.shared.log("Certificate loaded successfully.", category: "Network")
+            Logger.shared.log("Certificate loaded/generated successfully.", category: "Network")
         } else {
-            Logger.shared.log("No certificate found. Will need to generate or pair.", category: "Network", type: .error)
+            Logger.shared.log("Failed to load or generate certificate!", category: "Network", type: .error)
         }
     }
     
@@ -247,6 +251,20 @@ class NetworkManager: NSObject, ObservableObject {
         if case .posix(let code) = error, code == .ECANCELED { return }
          Logger.shared.log("Receive error: \(error)", category: "Protocol", type: .error)
          
+         // Handle TLS Certificate errors - fallback to pairing port
+         if case .tls(let status) = error {
+             if status == -9825 { // Bad certificate - need to pair
+                 Logger.shared.log("Certificate not recognized by TV. Switching to Pairing Port (6467)...", category: "Connection")
+                 self.connection?.cancel()
+                 if let ip = self.lastConnectedIP {
+                     DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
+                         self.connectToIP(host: ip, port: 6467)
+                     }
+                 }
+                 return
+             }
+         }
+         
          if case .posix(let code) = error {
              if code == .ECONNRESET || code == .ENOTCONN || code == .ETIMEDOUT {
                  self.connectionState = .error("Connection lost: \(code)")
@@ -391,7 +409,30 @@ class NetworkManager: NSObject, ObservableObject {
                  requestId = Int32(val)
              }
              sendPingResponse(val1: requestId)
+
+        case 30: // RemoteVoiceBegin (Tag 30 in V2)
+                // Received confirmation/initiation from TV
+                var id: UInt32 = 0
+                // Simple parsing for Field 1 (session_id)
+                // Data: 08 xx ... 
+                if data.count >= 2 && data[0] == 0x08 {
+                    let (val, _) = ProtocolBuffer.decodeVarint(data.dropFirst())
+                    id = UInt32(val)
+                }
+                
+                Logger.shared.log("TV initiated Voice Session ID: \(id) (Tag 30)", category: "Voice")
+                
+                // Handshake: Send back the same ID
+                self.voiceRequestId = id
+                self.sendVoiceBegin()
+                self.isVoiceActive = true
+                
+                // Now start recording
+                self.startRecordingEngine()
+                
         default:
+             let hex = data.map { String(format: "%02x", $0) }.joined()
+             Logger.shared.log("Ignored Unknown Tag: \(tag) (Data: \(data.count) bytes, Hex: \(hex))", category: "Protocol")
              break
         }
     }
@@ -408,7 +449,8 @@ class NetworkManager: NSObject, ObservableObject {
     
     func sendOptions() {
         let enc = ProtoEncoding(type: 3, symbolLength: 6)
-        let opt = Options(inputEncodings: [enc], outputEncodings: [enc], preferredRole: 1)
+        let voiceEnc = ProtoEncoding(type: 1, symbolLength: 0) // Voice support
+        let opt = Options(inputEncodings: [enc, voiceEnc], outputEncodings: [enc], preferredRole: 1)
         let outer = OuterMessage(options: opt)
         send(outer.serialize())
     }
@@ -471,42 +513,6 @@ class NetworkManager: NSObject, ObservableObject {
             let releasePkt = RemoteMessage(remoteKeyInject: releaseMsg)
             self?.send(releasePkt.serialize())
         }
-    }
-    
-    // MARK: - Voice Actions
-    
-    func startVoiceSearch() {
-        Logger.shared.log("Starting Voice Search...", category: "Voice")
-        self.sendVoiceBegin(requestId: 1)
-        
-        VoiceInputManager.shared.startRecording { [weak self] audioData in
-            self?.sendVoicePayload(data: audioData)
-        }
-    }
-    
-    func stopVoiceSearch() {
-        Logger.shared.log("Stopping Voice Search.", category: "Voice")
-        VoiceInputManager.shared.stopRecording()
-        self.sendVoiceEnd()
-    }
-    
-    // Internal Voice Sends
-    func sendVoiceBegin(requestId: UInt32) {
-        let msg = RemoteVoiceBegin(requestId: requestId)
-        let pkt = RemoteMessage(voiceBegin: msg)
-        send(pkt.serialize())
-    }
-    
-    func sendVoicePayload(data: Data) {
-        let msg = RemoteVoicePayload(data: data)
-        let pkt = RemoteMessage(voicePayload: msg)
-        send(pkt.serialize())
-    }
-    
-    func sendVoiceEnd() {
-        let msg = RemoteVoiceEnd()
-        let pkt = RemoteMessage(voiceEnd: msg)
-        send(pkt.serialize())
     }
     
     func send(_ data: Data) {
@@ -607,6 +613,61 @@ class NetworkManager: NSObject, ObservableObject {
         let config = RemoteConfigure(code1: 622, deviceInfo: info)
         let msg = RemoteMessage(remoteConfigure: config)
         send(msg.serialize())
+    }
+
+    // MARK: - Voice Control
+    
+    func startVoiceSearch() {
+        guard connectionState == .connected else {
+            Logger.shared.log("Cannot start voice: not connected", category: "Voice", type: .error)
+            return
+        }
+        
+        Logger.shared.log("Requesting Voice Search (Sending KEYCODE_SEARCH)...", category: "Voice")
+        self.sendKey(.search)
+        // Wait for TV to send RemoteVoiceBegin (Tag 30)
+    }
+    
+    private func startRecordingEngine() {
+        Logger.shared.log("Starting Audio Engine...", category: "Voice")
+        VoiceInputManager.shared.startRecording { [weak self] audioData in
+            guard let self = self, self.isVoiceActive else { return }
+            self.sendVoicePayload(audioData)
+        }
+    }
+    
+    func stopVoiceSearch() {
+        Logger.shared.log("Stopping Voice Search...", category: "Voice")
+        VoiceInputManager.shared.stopRecording()
+        
+        if isVoiceActive {
+            sendVoiceEnd()
+            isVoiceActive = false
+        }
+    }
+    
+    private func sendVoiceBegin() {
+        // Send back purely the session ID, no package name needed from client
+        let begin = RemoteVoiceBegin(sessionId: voiceRequestId, packageName: nil)
+        let msg = RemoteMessage(voiceBegin: begin)
+        sendRemoteMessage(msg)
+    }
+    
+    private func sendVoicePayload(_ audioData: Data) {
+        let payload = RemoteVoicePayload(sessionId: voiceRequestId, data: audioData)
+        let msg = RemoteMessage(voicePayload: payload)
+        sendRemoteMessage(msg)
+    }
+    
+    private func sendVoiceEnd() {
+        let end = RemoteVoiceEnd(sessionId: voiceRequestId)
+        let msg = RemoteMessage(voiceEnd: end)
+        sendRemoteMessage(msg)
+        Logger.shared.log("Voice session ended", category: "Voice")
+    }
+    
+    private func sendRemoteMessage(_ message: RemoteMessage) {
+        send(message.serialize())
     }
 }
 

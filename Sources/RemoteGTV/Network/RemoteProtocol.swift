@@ -13,6 +13,7 @@ enum Keycode: Int, Codable {
     case mute = 164
     case playPause = 85
     case power = 26
+    case search = 84
 }
 
 enum Direction: Int, Codable {
@@ -117,32 +118,49 @@ struct PingResponse {
 }
 
 struct RemoteVoiceBegin {
-    let requestId: UInt32
-    
+    let sessionId: UInt32
+    var packageName: String? = nil
+
     func serialize() -> Data {
         var data = Data()
-        data.append(0x08) // Tag 1 (Varint)
-        data.append(contentsOf: ProtocolBuffer.encodeVarint(UInt64(requestId)))
+        data.append(0x08) // Tag 1 (Varint) - sessionId
+        data.append(contentsOf: ProtocolBuffer.encodeVarint(UInt64(sessionId)))
+        
+        if let pkg = packageName, !pkg.isEmpty, let pkgData = pkg.data(using: .utf8) {
+            data.append(0x12) // Tag 2 (Length-delimited) - packageName
+            data.append(contentsOf: ProtocolBuffer.encodeVarint(UInt64(pkgData.count)))
+            data.append(pkgData)
+        }
         return data
     }
 }
 
 struct RemoteVoicePayload {
+    let sessionId: UInt32
     let data: Data
     
     func serialize() -> Data {
-        var d = Data()
-        d.append(0x0a) // Tag 1 (Bytes)
-        d.append(contentsOf: ProtocolBuffer.encodeVarint(UInt64(data.count)))
-        d.append(data)
-        return d
+        var out = Data()
+        // Field 1: session_id
+        out.append(0x08)
+        out.append(contentsOf: ProtocolBuffer.encodeVarint(UInt64(sessionId)))
+        
+        // Field 2: samples
+        out.append(0x12)
+        out.append(contentsOf: ProtocolBuffer.encodeVarint(UInt64(data.count)))
+        out.append(data)
+        return out
     }
 }
 
 struct RemoteVoiceEnd {
-    // Empty message usually, or contains requestId
+    let sessionId: UInt32
+    
     func serialize() -> Data {
-        return Data()
+        var out = Data()
+        out.append(0x08)
+        out.append(contentsOf: ProtocolBuffer.encodeVarint(UInt64(sessionId)))
+        return out
     }
 }
 
@@ -152,53 +170,71 @@ struct RemoteMessage {
     var remoteKeyInject: RemoteKeyInject? = nil
     var pingRequest: PingRequest? = nil
     var pingResponse: PingResponse? = nil
-    var voiceBegin: RemoteVoiceBegin? = nil   // Tag 11
-    var voicePayload: RemoteVoicePayload? = nil // Tag 12
-    var voiceEnd: RemoteVoiceEnd? = nil       // Tag 13
+    var voiceBegin: RemoteVoiceBegin? = nil   // Tag 30
+    var voicePayload: RemoteVoicePayload? = nil // Tag 31
+    var voiceEnd: RemoteVoiceEnd? = nil       // Tag 32
     
     func serialize() -> Data {
         var innerData = Data()
+        
         if let config = remoteConfigure {
             innerData.append(0x0a) // Tag 1 (1 << 3 | 2)
             let d = config.serialize()
             innerData.append(contentsOf: ProtocolBuffer.encodeVarint(UInt64(d.count)))
             innerData.append(d)
-        } else if let ack = remoteConfigureAck {
-            innerData.append(0x12) // Tag 2
+        } 
+        else if let ack = remoteConfigureAck {
+            innerData.append(0x12) // Revert to Tag 2 (Magic fix?)
             let d = ack.serialize()
             innerData.append(contentsOf: ProtocolBuffer.encodeVarint(UInt64(d.count)))
             innerData.append(d)
-        } else if let key = remoteKeyInject {
+        } 
+        else if let key = remoteKeyInject {
             innerData.append(0x52) // Tag 10
             let d = key.serialize()
             innerData.append(contentsOf: ProtocolBuffer.encodeVarint(UInt64(d.count)))
             innerData.append(d)
-        } else if let ping = pingRequest {
+        } 
+        else if let ping = pingRequest {
             innerData.append(0x42) // Tag 8
             let d = ping.serialize()
             innerData.append(contentsOf: ProtocolBuffer.encodeVarint(UInt64(d.count)))
             innerData.append(d)
-        } else if let resp = pingResponse {
+        } 
+        else if let resp = pingResponse {
             innerData.append(0x4a) // Tag 9
             let d = resp.serialize()
             innerData.append(contentsOf: ProtocolBuffer.encodeVarint(UInt64(d.count)))
             innerData.append(d)
-        } else if let begin = voiceBegin {
-            innerData.append(0x5a) // Tag 11 (11 << 3 | 2 = 88 + 2 = 90 = 0x5a)
+        } 
+        else if let begin = voiceBegin {
+            // Tag 30 (RemoteVoiceBegin). 30 = 0x1E. 
+            // Wire: (30 << 3) | 2 = 242. Varint(242) = 0xF2 0x01
+            innerData.append(0xf2)
+            innerData.append(0x01)
             let d = begin.serialize()
             innerData.append(contentsOf: ProtocolBuffer.encodeVarint(UInt64(d.count)))
             innerData.append(d)
-        } else if let payload = voicePayload {
-            innerData.append(0x62) // Tag 12 (12 << 3 | 2 = 96 + 2 = 98 = 0x62)
+        } 
+        else if let payload = voicePayload {
+            // Tag 31 (RemoteVoicePayload). 31 = 0x1F.
+            // Wire: (31 << 3) | 2 = 250. Varint(250) = 0xFA 0x01
+            innerData.append(0xfa)
+            innerData.append(0x01)
             let d = payload.serialize()
             innerData.append(contentsOf: ProtocolBuffer.encodeVarint(UInt64(d.count)))
             innerData.append(d)
-        } else if let end = voiceEnd {
-            innerData.append(0x6a) // Tag 13 (13 << 3 | 2 = 104 + 2 = 106 = 0x6a)
+        } 
+        else if let end = voiceEnd {
+            // Tag 32 (RemoteVoiceEnd). 32 = 0x20.
+            // Wire: (32 << 3) | 2 = 258. Varint(258) = 0x82 0x02
+            innerData.append(0x82)
+            innerData.append(0x02)
             let d = end.serialize()
             innerData.append(contentsOf: ProtocolBuffer.encodeVarint(UInt64(d.count)))
             innerData.append(d)
         }
+        
         return innerData
     }
 }

@@ -8,9 +8,10 @@ class VoiceInputManager: NSObject, ObservableObject {
     private var isRecording = false
     private var dataHandler: ((Data) -> Void)?
     
-    // Google TV requires 16000 Hz, 16-bit, Mono, PCM
-    private let targetFormat = AVAudioFormat(commonFormat: .pcmFormatInt16, sampleRate: 16000, channels: 1, interleaved: true)!
-    
+    // Google TV requires 8000 Hz, 16-bit, Mono, PCM.
+    // Audio is sent as Big Endian chunks.
+    private let targetFormat = AVAudioFormat(commonFormat: .pcmFormatInt16, sampleRate: 8000.0, channels: 1, interleaved: true)!
+
     func checkPermission() {
         switch AVCaptureDevice.authorizationStatus(for: .audio) {
         case .authorized:
@@ -32,7 +33,9 @@ class VoiceInputManager: NSObject, ObservableObject {
         
         self.dataHandler = handler
         
+        // Ensure input node is ready
         let inputNode = engine.inputNode
+        // Check input format
         let inputFormat = inputNode.inputFormat(forBus: 0)
         
         guard inputFormat.sampleRate > 0 else {
@@ -57,7 +60,8 @@ class VoiceInputManager: NSObject, ObservableObject {
             
             // Calculate required capacity for output buffer
             // Ratio = TargetRate / SourceRate
-            let ratio = 16000.0 / inputFormat.sampleRate
+            let ratio = 8000.0 / inputFormat.sampleRate
+
             let capacity = UInt32(Double(buffer.frameLength) * ratio) + 100 // Safety margin
             
             if let outputBuffer = AVAudioPCMBuffer(pcmFormat: self.targetFormat, frameCapacity: capacity) {
@@ -66,10 +70,23 @@ class VoiceInputManager: NSObject, ObservableObject {
                 
                 if status != .error, outputBuffer.frameLength > 0, let channelData = outputBuffer.int16ChannelData {
                     let channelPointer = channelData[0]
-                    let byteCount = Int(outputBuffer.frameLength) * MemoryLayout<Int16>.size
-                    let data = Data(bytes: channelPointer, count: byteCount)
+                    let frameCount = Int(outputBuffer.frameLength)
                     
-                    handler(data)
+                    // Convert Native (Little) Endian to Big Endian manually
+                    var bigEndianData = Data(count: frameCount * 2)
+                    bigEndianData.withUnsafeMutableBytes { ptr in
+                        let typedPtr = ptr.bindMemory(to: UInt16.self) // Use UInt16 for bit pattern
+                        for i in 0..<frameCount {
+                            // Read Int16 from pointer
+                            let sample = channelPointer[i]
+                            // Swap to Big Endian
+                            let swapped = sample.bigEndian
+                            // Store
+                            typedPtr[i] = UInt16(bitPattern: swapped)
+                        }
+                    }
+                    
+                    handler(bigEndianData)
                 }
             }
         }
@@ -77,7 +94,7 @@ class VoiceInputManager: NSObject, ObservableObject {
         do {
             try engine.start()
             isRecording = true
-            print("[VoiceInput] Audio Engine Started")
+            print("[VoiceInput] Audio Engine Started (8kHz Big Endian)")
         } catch {
             print("[VoiceInput] Start Error: \(error)")
         }

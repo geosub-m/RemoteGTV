@@ -7,6 +7,6 @@ struct RemoteTVApp: App {
             ContentView()
         }
         .windowResizability(.contentSize)
-        .defaultSize(width: 320, height: 700)
+        .defaultSize(width: 320, height: 520) // Compact remote size
     }
 }

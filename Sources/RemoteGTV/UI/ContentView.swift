@@ -21,10 +21,10 @@ struct ContentView: View {
                     }
                 }
                 
-                Spacer()
+                // Voice Button
+                MicrophoneButton()
                 
-                // Voice Search
-                VoiceButton()
+                Spacer()
                 
                 // D-Pad
                 DirectionalPad()
@@ -67,38 +67,6 @@ struct ContentView: View {
             default: return event
             }
         }
-    }
-}
-
-struct VoiceButton: View {
-    @State private var isRecording = false
-    @ObservedObject var network = NetworkManager.shared
-    
-    var body: some View {
-        ZStack {
-            Circle()
-                .fill(isRecording ? Color.red : Theme.Colors.darkBase)
-                .frame(width: 60, height: 60)
-                .shadow(color: isRecording ? Color.red.opacity(0.6) : Theme.Colors.darkShadow, radius: 5, x: 2, y: 2)
-            
-            Image(systemName: "mic.fill")
-                .font(.system(size: 24))
-                .foregroundColor(isRecording ? .white : Theme.Colors.accent)
-        }
-        .gesture(
-            DragGesture(minimumDistance: 0)
-                .onChanged { _ in
-                    if !isRecording {
-                        isRecording = true
-                        network.startVoiceSearch()
-                    }
-                }
-                .onEnded { _ in
-                    isRecording = false
-                    network.stopVoiceSearch()
-                }
-        )
-        .padding(.bottom, 10)
     }
 }
 
@@ -242,4 +210,38 @@ struct LogView: View {
     }
 }
 
-
+struct MicrophoneButton: View {
+    @ObservedObject var network = NetworkManager.shared
+    @State private var isRecording = false
+    
+    var body: some View {
+        ZStack {
+            Circle()
+                .fill(isRecording ? Color.red : Color.blue)
+                .shadow(color: isRecording ? Color.red.opacity(0.6) : Color.blue.opacity(0.4), radius: 10, x: 0, y: 5)
+            
+            Image(systemName: isRecording ? "mic.fill" : "mic")
+                .font(.system(size: 24, weight: .bold))
+                .foregroundColor(.white)
+        }
+        .frame(width: 64, height: 64)
+        .scaleEffect(isRecording ? 1.1 : 1.0)
+        .animation(.spring(response: 0.3, dampingFraction: 0.6), value: isRecording)
+        .gesture(
+            DragGesture(minimumDistance: 0)
+            .onChanged { _ in
+                if !isRecording {
+                    isRecording = true
+                    network.startVoiceSearch()
+                }
+            }
+            .onEnded { _ in
+                isRecording = false
+                network.stopVoiceSearch()
+            }
+        )
+        .onHover { inside in
+            if inside { NSCursor.pointingHand.push() } else { NSCursor.pop() }
+        }
+    }
+}

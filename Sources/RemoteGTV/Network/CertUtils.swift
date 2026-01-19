@@ -5,7 +5,7 @@ import CryptoKit
 class CertUtils {
     
     static let shared = CertUtils()
-    private let kIdentityLabel = "AndroidTVRemoteIdentity"
+    private let kIdentityLabel = "AndroidTVRemoteIdentity_V2"
     
     // Generate or Retrieve a Self-Signed Identity
     func getIdentity() -> SecIdentity? {
