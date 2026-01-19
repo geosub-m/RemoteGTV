@@ -228,7 +228,12 @@ class NetworkManager: NSObject, ObservableObject {
                 self.receiveBuffer.append(data)
                 self.processBuffer()
             } else if isComplete {
-                self.connectionState = .disconnected
+                if self.currentPort == 6466 {
+                    Logger.shared.log("Connection closed by peer (EOF). Retrying...", category: "Connection")
+                    self.retryControlPort()
+                } else {
+                    self.connectionState = .disconnected
+                }
                 return
             }
             
