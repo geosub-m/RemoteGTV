@@ -1,7 +1,7 @@
 # RemoteGTV 📺
 
 <p align="center">
-  <img src="AppIcon.png" width="128" height="128" alt="RemoteGTV Icon">
+  <img src="Sources/RemoteGTV/AppIcon.png" width="128" height="128" alt="RemoteGTV Icon">
 </p>
 
 **RemoteGTV** is a native macOS application designed to control **Android TV** and **Google TV** devices directly from your desktop. It provides a lightweight, responsive, and aesthetically pleasing interface to navigate your TV without needing to reach for the physical remote or your phone.
@@ -24,22 +24,21 @@ Built with **SwiftUI** and native system frameworks, it ensures high performance
 This project is built using:
 
 *   **Language**: [Swift 5.9+](https://swift.org/)
+*   **Framework**: Swift Package Manager (SPM)
 *   **UI Framework**: [SwiftUI](https://developer.apple.com/xcode/swiftui/)
 *   **Networking**: `Network.framework` (NWConnection) for raw TCP/TLS socket communication.
 *   **Protocol**: Custom implementation of the **Android TV Remote Protocol v2**.
-    *   Uses **Protocol Buffers** (Protobuf) for message serialization.
-    *   Implements a lightweight, dependency-free Protobuf encoder/decoder (`ProtocolBuffer.swift`).
 *   **Security**: Native `Security` framework for generating self-signed RSA certificates required for the pairing handshake.
 
 ## 🚀 How to Build & Install
 
 ### Prerequisites
-*   macOS 13.0 (Ventura) or later.
+*   macOS 14.0 (Sonoma) or later.
 *   Xcode 15+ (for Swift compiler tools) or just the Command Line Tools.
 
 ### Building from Source
 
-There is no need to open Xcode for a quick build. The project includes a shell script to compile and bundle the app automatically.
+There is no need to open Xcode for a quick build. The project includes a shell script to compile and bundle the app automatically using Swift Package Manager.
 
 1.  **Clone the repository:**
     ```bash
@@ -52,7 +51,7 @@ There is no need to open Xcode for a quick build. The project includes a shell s
     ./build_app.sh
     ```
     This script will:
-    *   Compile all Swift sources.
+    *   Build the project using `swift build -c release`.
     *   Generate the `RemoteGTV.app` bundle.
     *   Create the application icon.
     *   Sign the application (ad-hoc).
@@ -60,25 +59,29 @@ There is no need to open Xcode for a quick build. The project includes a shell s
 3.  **Run the App:**
     The application will be created in the project folder as `RemoteGTV.app`. You can double-click it or move it to your `/Applications` folder.
 
-## 🎮 How to Use
+### Running Tests
 
-1.  Ensure your **Mac** and **Android TV** are connected to the **same Wi-Fi network**.
-2.  Launch **RemoteGTV**.
-3.  The app will scan for devices. Click **"Connect"** (or enter the IP manually if needed).
-4.  **First Time Pairing**:
-    *   A alphanumeric code will appear on your TV screen.
-    *   Enter this code into the prompt in the RemoteGTV app.
-5.  Once paired, the interface will change to the remote view. You can now control your TV!
+This project uses **XCTest**. You can run all tests using:
+
+```bash
+swift test
+```
 
 ## 📂 Project Structure
 
-*   `RemoteTVApp.swift`: The entry point of the SwiftUI application.
-*   `ContentView.swift`: The main user interface implementation.
-*   `NetworkManager.swift`: Handles TCP/TLS connections, handshake logic, and data transmission.
-*   `RemoteProtocol.swift`: Defines the specific command structures and pairing logic for Android TV.
-*   `ProtocolBuffer.swift`: A custom, lightweight Swift implementation for encoding/decoding Protobuf messages without external dependencies.
-*   `CertUtils.swift`: Utilities for generating the SSL certificates required for authentication.
-*   `RemoteMote.proto`: (Reference) The standard Protobuf definitions used by the protocol.
+The project follows the standard Swift Package Manager structure:
+
+*   `Package.swift`: The package manifest defining targets and dependencies.
+*   `Sources/RemoteGTV/`:
+    *   `RemoteTVApp.swift`: The entry point of the SwiftUI application.
+    *   `ContentView.swift`: The main user interface implementation.
+    *   `NetworkManager.swift`: Handles TCP/TLS connections, handshake logic, and data transmission.
+    *   `RemoteProtocol.swift`: Defines the specific command structures for Android TV.
+    *   `CryptoUtils.swift`: Handles cryptographic operations (SHA256, RSA parsing).
+    *   `ProtocolBuffer.swift`: Custom lightweight Protobuf implementation.
+    *   `CertUtils.swift`: Utilities for generating SSL certificates.
+*   `Tests/RemoteGTVTests/`:
+    *   Unit tests for Protocol execution, data serialization, and cryptographic logic using `XCTest`.
 
 ## 🤝 Contributing
 
