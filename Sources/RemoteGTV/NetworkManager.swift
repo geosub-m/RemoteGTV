@@ -491,63 +491,12 @@ class NetworkManager: NSObject, ObservableObject {
         send(outer.serialize())
     }
     
-    private func extractRSAParams(from certData: Data) -> (modulus: Data, exponent: Data)? {
-        guard let certificate = SecCertificateCreateWithData(nil, certData as CFData) else { return nil }
-        var trust: SecTrust?
-        let policy = SecPolicyCreateBasicX509()
-        SecTrustCreateWithCertificates(certificate, policy, &trust)
-        
-        guard let t = trust, let publicKey = SecTrustCopyKey(t) else { return nil }
-        guard let keyData = SecKeyCopyExternalRepresentation(publicKey, nil) as Data? else { return nil }
-        
-        var offset = 0
-        if keyData[offset] != 0x30 { return nil } 
-        offset += 1
-        if keyData[offset] & 0x80 != 0 {
-            offset += Int(keyData[offset] & 0x7F) + 1
-        } else {
-            offset += 1
-        }
-        
-        if keyData[offset] != 0x02 { return nil }
-        offset += 1
-        let modLen: Int
-        if keyData[offset] & 0x80 != 0 {
-            let lenSize = Int(keyData[offset] & 0x7F)
-            offset += 1
-            var len = 0
-            for _ in 0..<lenSize {
-                len = (len << 8) | Int(keyData[offset])
-                offset += 1
-            }
-            modLen = len
-        } else {
-            modLen = Int(keyData[offset])
-            offset += 1
-        }
-        
-        var modStart = offset
-        var actualModLen = modLen
-        if keyData[modStart] == 0x00 {
-            modStart += 1
-            actualModLen -= 1
-        }
-        let modulus = keyData.subdata(in: modStart..<(modStart + actualModLen))
-        offset += modLen
-        
-        if keyData[offset] != 0x02 { return nil }
-        offset += 1
-        let expLen = Int(keyData[offset])
-        offset += 1
-        let exponent = keyData.subdata(in: offset..<(offset + expLen))
-        
-        return (modulus, exponent)
-    }
+
     
     func sendPairingSecret(_ secret: String) {
         Logger.shared.log("Calculating SHA256 for secret: \(secret)", category: "Pairing")
         
-        guard let serverCert = serverCertificateData, let serverParams = extractRSAParams(from: serverCert),
+        guard let serverCert = serverCertificateData, let serverParams = CryptoUtils.extractRSAParams(from: serverCert),
               let identity = self.identity else {
             Logger.shared.log("Error: Missing params or identity!", category: "Pairing", type: .error)
             return
@@ -556,7 +505,7 @@ class NetworkManager: NSObject, ObservableObject {
         var cert: SecCertificate?
         SecIdentityCopyCertificate(identity, &cert)
         guard let c = cert, let clientCertDER = SecCertificateCopyData(c) as Data?,
-              let clientParams = extractRSAParams(from: clientCertDER) else {
+              let clientParams = CryptoUtils.extractRSAParams(from: clientCertDER) else {
             Logger.shared.log("Error: Could not extract Client RSA Params!", category: "Pairing", type: .error)
             return
         }
@@ -577,15 +526,8 @@ class NetworkManager: NSObject, ObservableObject {
         let codeHeader = secret.prefix(2).uppercased()
         let codeData = Data(codeBytes)
         
-        func getDigest(data: [Data]) -> (Data, String) {
-            var hasher = SHA256()
-            for d in data { hasher.update(data: d) }
-            let digest = hasher.finalize()
-            return (Data(digest), Array(digest).prefix(1).map { String(format: "%02X", $0) }.joined())
-        }
-        
         // Primary probe
-        let (digest, header) = getDigest(data: [clientParams.modulus, clientParams.exponent, serverParams.modulus, serverParams.exponent, codeData])
+        let (digest, header) = CryptoUtils.getDigest(data: [clientParams.modulus, clientParams.exponent, serverParams.modulus, serverParams.exponent, codeData])
         Logger.shared.log("Hash header: \(header) vs \(codeHeader)", category: "Pairing")
         
         // We will send 32 bytes because 31 gave 402. 

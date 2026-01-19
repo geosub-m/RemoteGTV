@@ -1,3 +1,4 @@
 .DS_Store
-RemoteGTV
 RemoteGTV.app
+.build
+.swiftpm
