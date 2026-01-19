@@ -23,6 +23,9 @@ struct ContentView: View {
                 
                 Spacer()
                 
+                // Voice Search
+                VoiceButton()
+                
                 // D-Pad
                 DirectionalPad()
                 
@@ -64,6 +67,38 @@ struct ContentView: View {
             default: return event
             }
         }
+    }
+}
+
+struct VoiceButton: View {
+    @State private var isRecording = false
+    @ObservedObject var network = NetworkManager.shared
+    
+    var body: some View {
+        ZStack {
+            Circle()
+                .fill(isRecording ? Color.red : Theme.Colors.darkBase)
+                .frame(width: 60, height: 60)
+                .shadow(color: isRecording ? Color.red.opacity(0.6) : Theme.Colors.darkShadow, radius: 5, x: 2, y: 2)
+            
+            Image(systemName: "mic.fill")
+                .font(.system(size: 24))
+                .foregroundColor(isRecording ? .white : Theme.Colors.accent)
+        }
+        .gesture(
+            DragGesture(minimumDistance: 0)
+                .onChanged { _ in
+                    if !isRecording {
+                        isRecording = true
+                        network.startVoiceSearch()
+                    }
+                }
+                .onEnded { _ in
+                    isRecording = false
+                    network.stopVoiceSearch()
+                }
+        )
+        .padding(.bottom, 10)
     }
 }
 
@@ -206,3 +241,5 @@ struct LogView: View {
         }
     }
 }
+
+

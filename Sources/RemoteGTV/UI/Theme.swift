@@ -13,6 +13,7 @@ struct Theme {
         
         static let textPrimary = Color.white.opacity(0.9)
         static let textSecondary = Color.gray
+        static let accent = Color.blue
     }
     
     struct Layout {
