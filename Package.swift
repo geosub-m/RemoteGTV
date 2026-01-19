@@ -16,8 +16,9 @@ let package = Package(
     targets: [
         .executableTarget(
             name: "RemoteGTV",
+            exclude: ["Network/RemoteMote.proto"],
             resources: [
-                .process("AppIcon.png") 
+                .process("AppIcon.png")
             ]
         ),
         .testTarget(

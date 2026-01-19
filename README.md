@@ -26,6 +26,7 @@ This project is built using:
 *   **Language**: [Swift 5.9+](https://swift.org/)
 *   **Framework**: Swift Package Manager (SPM)
 *   **UI Framework**: [SwiftUI](https://developer.apple.com/xcode/swiftui/)
+*   **Architecture**: MVVM with Modular Structure (Core, Network, UI)
 *   **Networking**: `Network.framework` (NWConnection) for raw TCP/TLS socket communication.
 *   **Protocol**: Custom implementation of the **Android TV Remote Protocol v2**.
 *   **Security**: Native `Security` framework for generating self-signed RSA certificates required for the pairing handshake.
@@ -69,17 +70,22 @@ swift test
 
 ## 📂 Project Structure
 
-The project follows the standard Swift Package Manager structure:
+The project follows the standard Swift Package Manager structure with organized submodules:
 
 *   `Package.swift`: The package manifest defining targets and dependencies.
 *   `Sources/RemoteGTV/`:
-    *   `RemoteTVApp.swift`: The entry point of the SwiftUI application.
-    *   `ContentView.swift`: The main user interface implementation.
-    *   `NetworkManager.swift`: Handles TCP/TLS connections, handshake logic, and data transmission.
-    *   `RemoteProtocol.swift`: Defines the specific command structures for Android TV.
-    *   `CryptoUtils.swift`: Handles cryptographic operations (SHA256, RSA parsing).
-    *   `ProtocolBuffer.swift`: Custom lightweight Protobuf implementation.
-    *   `CertUtils.swift`: Utilities for generating SSL certificates.
+    *   **Core/**:
+        *   `Logger.swift`: Centralized logging system.
+    *   **Network/**:
+        *   `NetworkManager.swift`: Main coordinator for connection and state.
+        *   `DiscoveryManager.swift`: Handles Bonjour/mDNS device discovery.
+        *   `RemoteProtocol.swift`, `ProtocolBuffer.swift`: Protocol definitions and serialization.
+        *   `CryptoUtils.swift`, `CertUtils.swift`: Cryptography and Identity management.
+    *   **UI/**:
+        *   `RemoteTVApp.swift`: App entry point.
+        *   `ContentView.swift`: Main view assembly.
+        *   `Theme.swift`: Centralized design system (Colors, Layout).
+        *   **Components/**: Reusable UI views (`DeviceList.swift`, `DirectionalPad.swift`, `NeumorphicButton.swift`, etc.).
 *   `Tests/RemoteGTVTests/`:
     *   Unit tests for Protocol execution, data serialization, and cryptographic logic using `XCTest`.
 
