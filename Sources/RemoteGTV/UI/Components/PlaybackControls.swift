@@ -2,6 +2,7 @@ import SwiftUI
 
 struct PlaybackControls: View {
     @ObservedObject var network = NetworkManager.shared
+    @State var playing = true;
     
     var body: some View {
         VStack(spacing: 25) {
@@ -14,6 +15,20 @@ struct PlaybackControls: View {
                 FuncButton(icon: "speaker.wave.1", label: "Vol -", action: { network.sendKey(.volumeDown) })
                 FuncButton(icon: "speaker.slash", label: "Mute", action: { network.sendKey(.mute) })
                 FuncButton(icon: "speaker.wave.3", label: "Vol +", action: { network.sendKey(.volumeUp) })
+            }
+            
+            HStack(spacing: 25) {
+                if playing {
+                    FuncButton(icon: "pause.fill", label: "Pause", action: { playing.toggle(); network.sendKey(.playPause) })
+                } else {
+                    FuncButton(icon: "play.fill", label: "Play", action: { playing.toggle(); network.sendKey(.playPause) })
+                }
+                FuncButton(icon: "backward.fill", label: "Backward", action: {
+                    network.sendKey(.back)
+                })
+                FuncButton(icon: "forward.fill", label: "Forward", action: {
+                    network.sendKey(.fastForward)
+                })
             }
         }
     }

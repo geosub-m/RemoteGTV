@@ -14,6 +14,8 @@ enum Keycode: Int, Codable {
     case playPause = 85
     case power = 26
     case search = 84
+    case fastForward = 90
+    case rewind = 89
 }
 
 enum Direction: Int, Codable {
