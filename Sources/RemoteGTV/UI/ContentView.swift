@@ -21,8 +21,18 @@ struct ContentView: View {
                     }
                 }
                 
-                // Voice Button
-                MicrophoneButton()
+                // Voice & Power Controls
+                ZStack(alignment: .topTrailing) {
+                    HStack {
+                        Spacer()
+                        MicrophoneButton()
+                        Spacer()
+                    }
+                    
+                    PowerButton()
+                        .padding(.trailing, 16)
+                        .offset(y: -4)
+                }
                 
                 Spacer()
                 
@@ -64,6 +74,7 @@ struct ContentView: View {
             case 51: network.sendKey(.back); return nil // Backspace
             case 4: network.sendKey(.home); return nil // H
             case 103: network.sendKey(.volumeUp); return nil
+            case 35: network.sendKey(.power); return nil // P
             default: return event
             }
         }
