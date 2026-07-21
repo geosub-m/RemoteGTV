@@ -44,6 +44,8 @@ cat > "$APP_NAME.app/Contents/Info.plist" <<EOF
     <key>CFBundleName</key>
     <string>$APP_NAME</string>
     <key>CFBundleIconFile</key>
+    <string>AppIcon.icns</string>
+    <key>CFBundleIconName</key>
     <string>AppIcon</string>
     <key>CFBundleShortVersionString</key>
     <string>1.0</string>
@@ -93,6 +95,10 @@ fi
 # Ad-hoc Code Signing to avoid permission issues
 echo "Signing application..."
 codesign --force --deep --sign - "$APP_NAME.app"
+
+# Update timestamp and force Finder / LaunchServices to refresh icon cache
+touch "$APP_NAME.app"
+/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister -f "$APP_NAME.app" 2>/dev/null || true
 
 echo "=============================================="
 echo "Build Successful!"
