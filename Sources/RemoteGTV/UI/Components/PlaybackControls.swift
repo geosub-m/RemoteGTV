@@ -7,6 +7,7 @@ struct PlaybackControls: View {
         VStack(spacing: 25) {
             HStack(spacing: 25) {
                 FuncButton(icon: "house.fill", label: "Home", action: { network.sendKey(.home) })
+                FuncButton(icon: "playpause.fill", label: "Play/Pause", action: { network.sendKey(.playPause) })
                 FuncButton(icon: "arrow.uturn.backward", label: "Back", action: { network.sendKey(.back) })
             }
             
