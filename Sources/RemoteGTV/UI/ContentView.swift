@@ -21,17 +21,11 @@ struct ContentView: View {
                     }
                 }
                 
-                // Voice & Power Controls
-                ZStack(alignment: .topTrailing) {
-                    HStack {
-                        Spacer()
-                        MicrophoneButton()
-                        Spacer()
-                    }
-                    
+                // Power Control
+                HStack {
+                    Spacer()
                     PowerButton()
                         .padding(.trailing, 16)
-                        .offset(y: -4)
                 }
                 
                 Spacer()
